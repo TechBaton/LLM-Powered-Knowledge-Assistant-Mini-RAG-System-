@@ -1,0 +1,1 @@
+#FAISS indexes are stored in this folder when ingest.py is run locally
