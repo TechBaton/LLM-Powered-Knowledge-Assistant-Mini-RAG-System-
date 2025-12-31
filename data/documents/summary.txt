@@ -1,1 +1,0 @@
-#all documents that are to be read have to be uploaded in this folder
