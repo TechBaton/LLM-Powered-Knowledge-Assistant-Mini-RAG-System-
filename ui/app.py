@@ -9,6 +9,43 @@ from langchain_community.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
 from transformers import pipeline
 
+from random import sample
+
+def generate_suggested_questions(chunks, llm, max_questions=6):
+    """
+    Generate suggested user questions based on sampled document chunks.
+    """
+    prompt_template = (
+        "You are given a document excerpt.\n"
+        "Generate ONE clear and relevant question that a user might ask "
+        "based strictly on this content.\n\n"
+        "Content:\n{content}\n\nQuestion:"
+    )
+
+    questions = []
+
+    sampled_chunks = sample(chunks, min(3, len(chunks)))
+
+    for doc in sampled_chunks:
+        response = llm(
+            prompt_template.format(
+                content=doc.page_content[:500]
+            )
+        )
+        questions.append(response.strip())
+
+        if len(questions) >= max_questions:
+            break
+
+    return questions
+
+if "suggested_questions" not in st.session_state:
+    st.session_state.suggested_questions = []
+
+# -------- Session State --------
+if "history" not in st.session_state:
+    st.session_state.history = []
+
 # ---------------- CONFIG ----------------
 DATA_DIR = "data/documents"
 INDEX_DIR = "faiss_index"
@@ -88,6 +125,11 @@ if st.sidebar.button("Build / Rebuild Index"):
             db = FAISS.from_documents(chunks, load_embeddings())
             db.save_local(INDEX_DIR)
 
+            # Generate suggested questions once after indexing
+            st.session_state.suggested_questions = generate_suggested_questions(
+            chunks, llm
+            )   
+
         st.sidebar.success("Index built successfully")
 
 if st.sidebar.button("Clear Query History"):
@@ -95,11 +137,27 @@ if st.sidebar.button("Clear Query History"):
     st.sidebar.success("Query history cleared.")
     st.rerun()
 
+
 # ---------------- QUERY UI ----------------
 
 st.header("Ask a Question")
 
-query = st.text_input("Enter your question")
+# -------- Suggested Questions --------
+if st.session_state.suggested_questions:
+    st.subheader("Suggested Questions")
+    for q in st.session_state.suggested_questions:
+        if st.button(q):
+            st.session_state.prefill_query = q
+            st.rerun()
+else:
+    st.info("Suggested questions will appear after documents are indexed.")
+
+# -------- Query Input --------
+query = st.text_input(
+    "Enter your question",
+    value=st.session_state.get("prefill_query", "")
+)
+
 top_k = st.slider("Top-K Retrieved Chunks", 1, 5, 3)
 
 if query:
@@ -116,6 +174,20 @@ if query:
             )
 
             result = qa(query)
+            
+            # Save to session history
+            st.session_state.history.append({
+            "query": query,
+            "answer": result["result"],
+            "sources": [doc.metadata.get("source", "Unknown") 
+                for doc in result["source_documents"]]
+            })
+
+            # Clear prefilled query after use
+            if "prefill_query" in st.session_state:
+                del st.session_state.prefill_query
+
+
 
         # ----------- OUTPUT -----------
 
