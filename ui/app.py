@@ -90,6 +90,11 @@ if st.sidebar.button("Build / Rebuild Index"):
 
         st.sidebar.success("Index built successfully")
 
+if st.sidebar.button("Clear Query History"):
+    st.session_state.history = []
+    st.sidebar.success("Query history cleared.")
+    st.rerun()
+
 # ---------------- QUERY UI ----------------
 
 st.header("Ask a Question")
@@ -125,3 +130,20 @@ if query:
         st.subheader("Sources")
         for doc in result["source_documents"]:
             st.write(doc.metadata.get("source", "Unknown"))
+
+        st.subheader("Query History")
+
+        if st.session_state.history:
+            for i, item in enumerate(reversed(st.session_state.history), 1):
+                with st.expander(f"Query {len(st.session_state.history) - i + 1}"):
+                    st.markdown("**Question:**")
+                    st.write(item["query"])
+
+                    st.markdown("**Answer:**")
+                    st.write(item["answer"])
+
+                    st.markdown("**Sources:**")
+                    for src in item["sources"]:
+                        st.write("-", src)
+        else:
+            st.write("No queries yet in this session.")
