@@ -121,6 +121,9 @@ if st.sidebar.button("Build / Rebuild Index"):
                 chunk_overlap=50
             )
             chunks = splitter.split_documents(documents)
+            # Store chunks for later question regeneration
+            st.session_state.chunks = chunks
+
 
             db = FAISS.from_documents(chunks, load_embeddings())
             db.save_local(INDEX_DIR)
@@ -145,10 +148,20 @@ st.header("Ask a Question")
 # -------- Suggested Questions --------
 if st.session_state.suggested_questions:
     st.subheader("Suggested Questions")
+
     for q in st.session_state.suggested_questions:
         if st.button(q):
             st.session_state.prefill_query = q
             st.rerun()
+
+    # Reload questions button
+    if st.button("Reload questions"):
+        with st.spinner("Generating new suggested questions..."):
+            st.session_state.suggested_questions = generate_suggested_questions(
+                st.session_state.chunks,
+                llm
+            )
+        st.rerun()
 else:
     st.info("Suggested questions will appear after documents are indexed.")
 
